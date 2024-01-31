@@ -59,7 +59,7 @@ void loop() {
 
   String input = Serial.readString();
   if(input.substring(0,3) == "TX:"){
-
+    Serial.print("Transmitting ");
     String command = input.substring(3);
     Serial.println(command);
     char char_array[command.length()] = {'\0'};
