@@ -18,8 +18,13 @@
 
 String readString;
 
-// Frequency for transmit/receive.
-#define RF95_FREQ 433.0
+// ################################### Configuration ###################################
+#define FREQ 915.0 // Transmission Frequency, generally between 868 and 920 
+#define PWR 20 // Power between 2 (weakest) and 20 (strongest)
+#define BANDWIDTH 125000 //Bandwidth Options: 7800,10400,15600,20800,31250,41700,62500,125000,250000,500000
+#define CR 5 // Setup Coding Rate Options: 5 (4/5), 6 (4/6), 7 (4/7), or 8 (4/8)
+#define SF 7 // Spreading Factor: Valid values are 6 through 12
+// ################################### Configuration ###################################
 
 // Singleton instance of the radio driver
 RH_RF95 rf95(RFM95_CS, RFM95_INT);
@@ -44,13 +49,16 @@ void setup() {
 
   Serial.println("Welcome to the skinny-lora transceiver");
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
-  if (!rf95.setFrequency(RF95_FREQ)) {
+  if (!rf95.setFrequency(FREQ)) {
     Serial.println("setFrequency failed");
     while (1);
   }
 
-  Serial.print("Freq set to: "); Serial.println(RF95_FREQ);  // Default is 433.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
-  rf95.setTxPower(23, false);
+  Serial.print("Freq set to: "); Serial.println(FREQ);  
+  rf95.setTxPower(PWR, false); //
+  rf95.setSignalBandwidth(BANDWIDTH);
+  rf95.setCodingRate4(CR);
+  rf95.setSpreadingFactor(SF);
 
 }
 
