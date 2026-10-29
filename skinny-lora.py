@@ -1,60 +1,70 @@
 import asyncio
+import queue
+import sys
 import threading
 import serial
 import argparse
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.shortcuts import PromptSession
 
-cmdToTransmit = ""
-def print_counter():
-    global cmdToTransmit
+BAUD_RATE = 115200  # Must match Serial.begin() in skinny-lora.ino
+
+txQueue = queue.Queue()
+disconnected = threading.Event()
+shuttingDown = threading.Event()
+
+
+def serial_monitor(ser, loop, session):
     """
-    Thread that monitors the serial port
+    Thread that monitors the serial port and sends queued commands
     """
     try:
         while True:
-            with serial.Serial(args.port, 19200, timeout=1) as ser:
-                while True:
-                    if cmdToTransmit != "":
-                        msg = "TX:"+cmdToTransmit+" "
-                        ser.write(msg.encode())
-                        cmdToTransmit = ""
-                    else: 
-                        line = ser.readline()   # read a '\n' terminated line
-                        if line:
-                            print(line.decode('utf-8'))
-    except:
-        print("Could not connect to the device")
+            try:
+                cmd = txQueue.get_nowait()
+                ser.write(("TX:" + cmd + "\n").encode())
+            except queue.Empty:
+                line = ser.readline()   # read a '\n' terminated line
+                if line:
+                    print(line.decode('utf-8', errors='replace').rstrip('\r\n'))
+    except (serial.SerialException, OSError) as e:
+        if shuttingDown.is_set():   # Port was closed because we are exiting
+            return
+        print("Lost connection to the device: " + str(e))
+        disconnected.set()
+        loop.call_soon_threadsafe(exit_prompt, session)
 
 
-async def interactive_shell():
+def exit_prompt(session):
+    if session.app.is_running:
+        session.app.exit(exception=EOFError())
+
+
+async def interactive_shell(session):
     """
     Skinny-LoRa interactive shell
     """
-    # Create Prompt.
-    session = PromptSession("SkinnyLoRa> Enter a Command To Transmit: ")
-    global cmdToTransmit        # Define our global variable for TX
- 
-    while True:
+    while not disconnected.is_set():
         try:
             result = await session.prompt_async()
-            cmdToTransmit = result
-            print("Transmitting: "+result)
         except (EOFError, KeyboardInterrupt):
             return
+        if result:
+            txQueue.put(result)
+            print("Transmitting: " + result)
 
 
-async def main():
+async def main(ser):
+    session = PromptSession("SkinnyLoRa> Enter a Command To Transmit: ")
     with patch_stdout():
-        thread = threading.Thread(target=print_counter)
+        thread = threading.Thread(target=serial_monitor, args=(ser, asyncio.get_running_loop(), session))
         thread.daemon = True
         thread.start()
-        #background_task = asyncio.create_task(print_counter())
         try:
-            await interactive_shell()
+            await interactive_shell(session)
         finally:
+            shuttingDown.set()
             print("Exiting...")
-            exit(0)
 
 
 if __name__ == "__main__":
@@ -62,8 +72,10 @@ if __name__ == "__main__":
     parser.add_argument('-p', '--port', help='The serial port to attach to', required=True)
     args = parser.parse_args()
     try:
-        from asyncio import run
-    except ImportError:
-        asyncio.run_until_complete(main())
-    else:
-        asyncio.run(main())
+        ser = serial.Serial(args.port, BAUD_RATE, timeout=1)
+    except serial.SerialException as e:
+        print("Could not connect to the device: " + str(e))
+        sys.exit(1)
+    with ser:
+        asyncio.run(main(ser))
+    sys.exit(1 if disconnected.is_set() else 0)

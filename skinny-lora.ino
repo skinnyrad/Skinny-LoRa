@@ -16,7 +16,15 @@
   
 #endif
 
-String readString;
+// Largest text payload we can send: the radio's max message length minus the trailing '\0'
+#define MAX_PAYLOAD (RH_RF95_MAX_MESSAGE_LEN - 1)
+// Serial input is processed once a newline arrives, or after this many ms with no new characters
+#define LINE_IDLE_MS 50
+
+char line[MAX_PAYLOAD + 8];
+size_t lineLen = 0;
+bool lineOverflow = false;
+unsigned long lastCharMs = 0;
 
 // ################################### Configuration ###################################
 #define FREQ 915.0 // Transmission Frequency, generally between 868 and 920 
@@ -63,19 +71,66 @@ void setup() {
 }
 
 
+void handleLine() {
+  if (lineLen < 3 || strncmp(line, "TX:", 3) != 0) {
+    return;
+  }
+
+  // Older versions of skinny-lora.py append a space to every command, drop it
+  while (lineLen > 3 && line[lineLen - 1] == ' ') line[--lineLen] = '\0';
+
+  const char *payload = line + 3;
+  if (lineOverflow) {
+    Serial.print("Message too long, max is ");
+    Serial.print(MAX_PAYLOAD);
+    Serial.println(" bytes. Nothing transmitted.");
+    return;
+  }
+
+  Serial.print("Transmitting ");
+  Serial.println(payload);
+  // Send the terminating '\0' too, receivers compare the payload as a C string
+  rf95.send((const uint8_t*)payload, strlen(payload) + 1);
+  rf95.waitPacketSent();
+}
+
+void readSerial() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    lastCharMs = millis();
+    if (c == '\n' || c == '\r') {
+      line[lineLen] = '\0';
+      handleLine();
+      lineLen = 0;
+      lineOverflow = false;
+    } else if (lineLen < 3 + MAX_PAYLOAD) {
+      line[lineLen++] = c;
+    } else {
+      lineOverflow = true;
+    }
+  }
+
+  // Input without a line ending (e.g. Serial Monitor set to "No line ending")
+  if ((lineLen > 0 || lineOverflow) && millis() - lastCharMs > LINE_IDLE_MS) {
+    line[lineLen] = '\0';
+    handleLine();
+    lineLen = 0;
+    lineOverflow = false;
+  }
+}
+
+void printDecoded(const uint8_t *buf, uint8_t len) {
+  // Skip trailing '\0' padding, show other non-printable bytes as '.'
+  while (len > 0 && buf[len - 1] == 0) len--;
+  for (uint8_t i = 0; i < len; i++) {
+    Serial.print(isprint(buf[i]) ? (char)buf[i] : '.');
+  }
+  Serial.println();
+}
+
 void loop() {
 
-  String input = Serial.readString();
-  if(input.substring(0,3) == "TX:"){
-    Serial.print("Transmitting ");
-    String command = input.substring(3);
-    Serial.println(command);
-    char char_array[command.length()] = {'\0'};
-    command.toCharArray(char_array, sizeof(char_array));
-    rf95.send((uint8_t*)char_array, sizeof(char_array));
-    rf95.waitPacketSent();
-    delay(200);
-  }
+  readSerial();
 
   if(rf95.available()) {
     uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
@@ -85,7 +140,7 @@ void loop() {
       Serial.println("----------------- Start PACKET -----------------");
       RH_RF95::printBuffer("Received: ", buf, len);
       Serial.print("Decoded Value: ");
-      Serial.println((char*)buf);
+      printDecoded(buf, len);
       Serial.print("RSSI: ");
       Serial.println(rf95.lastRssi(), DEC);
       Serial.println("----------------- End PACKET -----------------");

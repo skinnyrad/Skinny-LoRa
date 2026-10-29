@@ -45,40 +45,27 @@ The only required option is the serial port to attach to.  This should be the se
 ```
 $ python3 skinny-lora.py -p /dev/ttyACM0
 
-
 ----------------- Start PACKET -----------------
-
 Received:
-
 50 61 72 6B 69 6E 67 20 54 69 74 61 6E 20 56 65
-
 72 73 69 6F 6E 20 33 2E 38 2E 37 20 2D 20 4D 65
-
 74 65 72 2D 31 0
-
 Decoded Value: Parking Titan Version 3.8.7 - Meter-1
-
 RSSI: -30
-
 ----------------- End PACKET -----------------
-
 SkinnyLoRa> Enter a Command To Transmit: Meter-1 get-status
 Transmitting: Meter-1 get-status
-Meter-1 get-status
-
+Transmitting Meter-1 get-status
 ----------------- Start PACKET -----------------
-
 Received:
-
 4D 65 74 65 72 2D 31 20 53 74 61 74 75 73 3A 20
-
 41 63 74 69 76 65 20 69 6E 20 42 72 6F 61 64 63
-
 61 73 74 20 4D 6F 64 65 0
-
 Decoded Value: Meter-1 Status: Active in Broadcast Mode
-
 RSSI: -30
-
 ----------------- End PACKET -----------------
 ```
+
+Messages can be up to 250 bytes long. Longer messages are rejected by the device and nothing is transmitted.
+
+The device can also be driven directly from a serial terminal (115200 baud) by sending `TX:<message>` followed by a newline.
