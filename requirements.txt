@@ -1,2 +1,2 @@
-prompt_toolkit==3.0.38
-pyserial==3.5
+prompt_toolkit>=3.0.38,<4
+pyserial>=3.5
