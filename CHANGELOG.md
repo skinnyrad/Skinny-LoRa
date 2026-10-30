@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
 - The firmware no longer waits forever for a computer at power on, so it also runs from a battery
 - String constants are kept in flash, leaving room for the larger buffers on the Feather 32u4
 - requirements.txt allows newer versions of prompt_toolkit and pyserial
+- New demo GIF and screenshots in the README showing the current app
 
 ### Fixed
 - Last character of every transmitted message was dropped
