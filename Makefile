@@ -9,7 +9,8 @@ SKETCH = firmware/skinny-lora
 # Board support for the Feather M0 and 32u4, and the RadioHead library
 deps:
 	arduino-cli core update-index --additional-urls $(ADAFRUIT_INDEX)
-	arduino-cli core install adafruit:samd adafruit:avr --additional-urls $(ADAFRUIT_INDEX)
+# The Adafruit cores build on top of Arduino's, which arduino-cli does not pull in by itself
+	arduino-cli core install arduino:avr arduino:samd adafruit:avr adafruit:samd --additional-urls $(ADAFRUIT_INDEX)
 	arduino-cli lib install RadioHead@$(RADIOHEAD_VERSION)
 
 compile:
