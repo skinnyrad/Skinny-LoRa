@@ -2,7 +2,15 @@
 
 Skinny-LoRa is a terminal application for transmitting and receiving LoRa traffic using a single Adafruit Feather M0 (or 32u4) with RFM95 LoRa Radio.
 
-![skinny-lora](./img/skinny-lora.gif)
+![Skinny-LoRa talking to a Parking Titan lab meter: reading its status and remaining time, then setting a new remaining time](./img/skinny-lora.gif)
+
+*Skinny-LoRa querying a simulated "Parking Titan" LoRa parking meter, then changing its remaining time.*
+
+# Requirements
+
+* An [Adafruit Feather M0 with RFM95 LoRa Radio](https://www.adafruit.com/product/3178) (or the Feather 32u4 version) with an antenna, for the band your module is made for (433, 868 or 915 MHz)
+* Python 3.9 or newer
+* [arduino-cli](https://arduino.github.io/arduino-cli/) or the Arduino IDE to flash the firmware
 
 # Setup
 
@@ -64,44 +72,27 @@ options:
   --version        show program's version number and exit
 ```
 
-With a single Feather plugged in no options are needed. By default the application runs in receive mode and streams packets in the background until you enter data to transmit. Once the application transmits the packet, it immediately returns to streaming LoRa packets:
+With a single Feather plugged in no options are needed. When two or more are plugged in, pick one with `-p`. On connecting, the app prints the radio settings as a `STATUS` line.
 
-```
-$ skinny-lora
-skinny-lora 0.2.0 on /dev/ttyACM0
-Connected. Type a message to transmit it, or /help for commands.
-STATUS freq=915.00 sf=7 bw=125000 cr=5 power=20 raw=0 lbt=1 crc=1 rx_good=0 rx_bad=0 tx_good=0 version=0.2.0
------------------ Start PACKET -----------------
-Received:
-50 61 72 6B 69 6E 67 20 54 69 74 61 6E 20 56 65
-72 73 69 6F 6E 20 33 2E 38 2E 37 20 2D 20 4D 65
-74 65 72 2D 31 00
-Decoded Value: Parking Titan Version 3.8.7 - Meter-1
-Length: 38
-RSSI: -30
-SNR: 9
-Time: 9012 ms
------------------ End PACKET -----------------
-SkinnyLoRa> Meter-1 get-status
-Transmitting Meter-1 get-status
------------------ Start PACKET -----------------
-Received:
-4D 65 74 65 72 2D 31 20 53 74 61 74 75 73 3A 20
-41 63 74 69 76 65 20 69 6E 20 42 72 6F 61 64 63
-61 73 74 20 4D 6F 64 65 00
-Decoded Value: Meter-1 Status: Active in Broadcast Mode
-Length: 41
-RSSI: -30
-SNR: 10
-Time: 11250 ms
------------------ End PACKET -----------------
-```
+By default the application runs in receive mode and streams packets in the background until you enter data to transmit. Once the application transmits the packet, it immediately returns to streaming LoRa packets. Here a broadcast from a lab parking meter arrives, then `Meter-1 get-status` is sent and the meter answers:
+
+![A received broadcast, then a transmitted command and the meter's reply](./img/meter.png)
+
+Each packet shows:
+
+* **Received:** the bytes, as hex
+* **Decoded Value:** the bytes as text, with `.` for bytes that aren't printable
+* **Length:** the number of bytes
+* **RSSI** and **SNR:** signal strength in dBm and signal-to-noise ratio in dB
+* **Time:** how long the Feather has been running, in ms
 
 Messages can be up to 250 bytes long. Longer messages are rejected by the device and nothing is transmitted. Text messages are sent with a terminating `00` byte so receivers can treat them as C strings.
 
 ## Commands
 
-Anything you type is transmitted, except lines starting with `/`:
+Anything you type is transmitted, except lines starting with `/`. Type `/help` for the list:
+
+![The /help command listing every app command](./img/help.png)
 
 | Command | |
 |---|---|
@@ -125,6 +116,10 @@ Both radios must use the same frequency, spreading factor, bandwidth and coding 
 ## Raw mode
 
 The RadioHead library puts a 4 byte header (to, from, id, flags) in front of every packet, and normally hides it and drops packets that are not addressed to everyone. In raw mode skinny-lora receives every packet and shows those 4 bytes as the start of the data, and `/hex`, `/replay` and typed text are transmitted exactly as given, with the first 4 bytes going out as the header. This makes it possible to capture and replay devices that do not use RadioHead.
+
+The same meter broadcast as above, received in raw mode. The header bytes `FF FF 00 00` (to: everyone, from: 0xFF, id 0, flags 0) now come first:
+
+![Raw mode showing the 4 RadioHead header bytes in front of the payload](./img/raw-mode.png)
 
 Limitations: packets shorter than 4 bytes are dropped by the radio library, the sync word is fixed at RadioHead's 0x12, and SF6 is not supported.
 
